@@ -1,0 +1,10 @@
+{
+    "CUBA_URL": "iot.tocloud.kz",
+    "TB_GATEWAY_TOKEN": "51kqhLR8qCnma0tvK6rr",
+    "TB_TOTALS_DEVICE_NAME": "CAMERAS_TOTALS",
+    "TB_CLIENT_ID": "cda4e2a0-75e1-11ed-999b-fd0f71861829",
+    "TB_DEVICE_PROFILE": "pp_Camera",
+    "PING_COUNT": "2",
+    "PING_INTERVAL": "2"
+}
+
