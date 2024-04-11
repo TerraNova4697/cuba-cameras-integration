@@ -36,6 +36,16 @@ def flush_cameras_changes(cameras):
         session.commit()
 
 
+def update_ping_period(camera_name, new_ping_period, prev_ping):
+    camera = session.scalar(select(Camera).where(Camera.name == camera_name))
+    camera.prev_ping_period = camera.ping_period
+    camera.ping_period = new_ping_period
+    camera.status = 1
+
+    session.add(camera)
+    session.commit()
+
+
 # def get():
 #     return session.scalars(
 #         select(Camera).where(
@@ -54,11 +64,11 @@ def flush_cameras_changes(cameras):
 #     ).all()
 
 
-def update_ping_period():
+def update_ping_period_dev():
 
     session.execute(
         update(Camera)
-        .values({"ping_period": 6000, "status": 0})
+        .values({"ping_period": 60, "status": 0})
         .where(
             Camera.id
             # Camera.id.in_(

@@ -22,9 +22,20 @@ cameras_map = {}
 coroutines_map = {}
 
 
-def handle_rpc(gateway, request_body):
+def handle_rpc(gateway: TBGatewayMqttClient, request_body):
     logging.info(f"RPC: {request_body}")
-    # TODO: write RPC that would update ping_period of cameras
+
+    data = request_body["data"]
+    method = data["method"]
+
+    if method == "update_ping_period":
+        device = request_body["device"]
+        ping_period = data["params"]["seconds"]
+        res = update_ping_period(device, ping_period)
+        if res == ping_period:
+            config.db_modified = True
+        gateway.send_rpc_reply(data["id"], True)
+        logging.info("RPC acknowledged.")
 
 
 async def connect_devices(
@@ -70,8 +81,8 @@ async def ping_camera(gateway, name, ip):
         await process.communicate()
         connection_status = 1 if process.returncode == 0 else 0
 
-        # telemetry = {"online": connection_status}
-        # gateway.gw_send_telemetry(device.name, telemetry)
+        telemetry = {"online": connection_status}
+        gateway.gw_send_telemetry(name, telemetry)
 
         # TODO: update camera values in BD
 
@@ -206,7 +217,7 @@ async def main():
             period_tasks.append(coroutine)
             coroutines_map[key] = coroutine
 
-        asyncio.create_task(update_ping())  # TODO: delete line.
+        # asyncio.create_task(update_ping())  # TODO: delete line.
         # TODO: run a coroutine that will check if there were changes in DB via RPC
         await asyncio.gather(*period_tasks, check_db(gateway))
 
