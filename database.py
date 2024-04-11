@@ -36,7 +36,7 @@ def flush_cameras_changes(cameras):
         session.commit()
 
 
-def update_ping_period(camera_name, new_ping_period, prev_ping):
+def update_ping_period(camera_name, new_ping_period):
     camera = session.scalar(select(Camera).where(Camera.name == camera_name))
     camera.prev_ping_period = camera.ping_period
     camera.ping_period = new_ping_period
