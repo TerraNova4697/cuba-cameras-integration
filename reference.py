@@ -15,7 +15,7 @@ logging.basicConfig(filename="log.log", level=logging.INFO)
 
 
 def handle_rpc(gateway, request_body):
-    logging.info(f'RPC: {request_body}')
+    logging.info(f"RPC: {request_body}")
 
 
 # Create dictionary for previous values
@@ -42,7 +42,7 @@ async def disconnect_devices(gateway: TBGatewayMqttClient, devices: list):
 
 
 async def send_device_connection_status(
-        gateway: TBGatewayMqttClient, deviceName: str, ip: str, curr_time
+    gateway: TBGatewayMqttClient, deviceName: str, ip: str, curr_time
 ):
     connection_status = 0
     try:
@@ -61,12 +61,12 @@ async def send_device_connection_status(
         connection_status = 1 if process.returncode == 0 else 0
 
         # Send telemetry on connection status change
-        #if devices_previous_connection_status[deviceName] != connection_status:
-        
-        telemetry = {"online": connection_status}
-        ts = datetime.timestamp(curr_time) * 1000
-        data = [{"ts": ts, "values": telemetry}]
-        gateway.gw_send_telemetry(deviceName, data)
+        # if devices_previous_connection_status[deviceName] != connection_status:
+
+        # telemetry = {"online": connection_status}
+        # ts = datetime.timestamp(curr_time) * 1000
+        # data = [{"ts": ts, "values": telemetry}]
+        # gateway.gw_send_telemetry(deviceName, data)
 
         devices_previous_connection_status[deviceName] = connection_status
         global devices_connections_changed
@@ -96,12 +96,16 @@ async def main():
     await connect_devices(gateway, config.CAMERAS, device_type=config.TB_DEVICE_PROFILE)
 
     last_datetime = datetime.now()
-    last_datetime -= timedelta(seconds=last_datetime.second, microseconds=last_datetime.microsecond)
+    last_datetime -= timedelta(
+        seconds=last_datetime.second, microseconds=last_datetime.microsecond
+    )
 
     # Ping devices and send data to platform
     while True:
         curr_datetime = datetime.now()
-        curr_datetime -= timedelta(seconds=curr_datetime.second, microseconds=curr_datetime.microsecond)
+        curr_datetime -= timedelta(
+            seconds=curr_datetime.second, microseconds=curr_datetime.microsecond
+        )
 
         if last_datetime == curr_datetime:
             await asyncio.sleep(3)
@@ -120,10 +124,7 @@ async def main():
             for device in config.CAMERAS:
                 tasks.append(
                     send_device_connection_status(
-                        gateway,
-                        device["deviceName"],
-                        device["IP"],
-                        curr_datetime
+                        gateway, device["deviceName"], device["IP"], curr_datetime
                     )
                 )
 

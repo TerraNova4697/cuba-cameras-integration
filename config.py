@@ -38,3 +38,5 @@ TB_CLIENT_ID = os.environ["TB_CLIENT_ID"]
 TB_DEVICE_PROFILE = os.environ["TB_DEVICE_PROFILE"]
 PING_COUNT = os.environ["PING_COUNT"]
 PING_INTERVAL = os.environ["PING_INTERVAL"]
+
+db_modified = False

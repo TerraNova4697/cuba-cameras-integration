@@ -1,0 +1,13 @@
+certifi==2024.2.2
+charset-normalizer==3.3.2
+greenlet==3.0.3
+idna==3.6
+mmh3==4.1.0
+python-dotenv==1.0.1
+requests==2.31.0
+simplejson==3.19.2
+SQLAlchemy==2.0.29
+tb-mqtt-client==1.5
+tb-paho-mqtt-client==1.6.3
+typing_extensions==4.11.0
+urllib3==2.2.1

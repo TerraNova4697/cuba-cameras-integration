@@ -1,23 +1,36 @@
 import asyncio
 import logging
-import subprocess
 from time import time
 
 from tb_gateway_mqtt import TBGatewayMqttClient
 
+# from reference import send_device_connection_status
 import config
+
 from database import (
     get_all_cameras,
     db_init,
     get_unique_ping_periods,
     get_cameras_by_ping_period,
+    get_modified_cameras,
+    flush_cameras_changes,
+    update_ping_period,
+)
+
+
+# log_fh = logging.FileHandler("info.log")
+logging.basicConfig(
+    format="%(asctime)s - %(lineno)s - %(levelname)s - %(message)s",
+    filename="info.log",
+    level=logging.INFO,
 )
 
 
 db_init()
-logging.basicConfig(filename="info.log", level=logging.INFO)
+
 
 cameras_map = {}
+new_cameras = False
 
 
 def handle_rpc(gateway, request_body):
@@ -35,22 +48,32 @@ async def connect_devices(
     logging.info(f"{len(devices)} devices successfully connected")
 
 
-async def ping_camera(gateway, device):
+async def ping_camera(gateway, name, ip):
+    """Ping device, send telemetry and save data.
+
+    Args:
+        gateway (TBGatewayMqttClient): Gateway to send data to.
+        name (str): Name of the device.
+        ip (str): IP of the address.
+
+    Returns:
+        _type_: _description_
+    """
     connection_status = 0
     try:
         # Ping device
-        # process = await asyncio.create_subprocess_exec(
-        #     "ping",
-        #     "-c",
-        #     PING_COUNT,
-        #     "-i",
-        #     PING_INTERVAL,
-        #     device.ip,
-        #     stdout=subprocess.DEVNULL,
-        #     stderr=subprocess.DEVNULL,
-        # )
-        # await process.communicate()
-        # connection_status = 1 if process.returncode == 0 else 0
+        process = await asyncio.create_subprocess_exec(
+            "ping",
+            "-c",
+            config.PING_COUNT,
+            "-i",
+            config.PING_INTERVAL,
+            ip,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        await process.communicate()
+        connection_status = 1 if process.returncode == 0 else 0
 
         # telemetry = {"online": connection_status}
         # gateway.gw_send_telemetry(device.name, telemetry)
@@ -59,45 +82,97 @@ async def ping_camera(gateway, device):
 
         # global devices_connections_changed
         # devices_connections_changed += 1
-        await asyncio.sleep(1)
 
+    except asyncio.exceptions.TimeoutError as e:
+        logging.exception(f"Timeout while ping {e}")
     except Exception as e:
-        error_msg = "Error in getting device {} ({}) connection: {}"
-        error_msg.format(device.name, device.ip, e)
+        error_msg = f"Error in getting device {name} ({ip}) connection: {e}"
         logging.error(error_msg)
 
     # return connection_status
-    return 1
+    return connection_status
 
 
 async def ping_cameras_list(gateway, period, devices):
+    """This coroutine creates tasks for each device and waits fot tasks to complete.
+       Then sleeps for cetain amount of time.
+       Works in loop.
+
+    Args:
+        gateway (TBGatewayMqttClient): Gateway to send data to.
+        period (int): How often will cameras be pinged.
+        devices (list): List of devices.
+    """
     while True:
         time_start = time()
+
         tasks = []
         for device in devices:
-            tasks.append(ping_camera(gateway, device))
+            tasks.append(
+                asyncio.create_task(ping_camera(gateway, device.name, device.ip))
+            )
 
-        results = await asyncio.gather(*tasks)
+        results = []
+        for task in tasks:
+            await task
+            results.append(task.result())
 
         print(results)
         time_end = time()
         time_to_wait = period - (time_end - time_start)
-        logging.info(f"Coroutine finished in {time_end-time_start} sec.")
+        logging.info(
+            f"With period {period} ({len(devices)} items). Coroutine finished in {time_end-time_start} sec. \
+            Next iteration in {time_to_wait} sec."
+        )
         if time_to_wait > 0:
             await asyncio.sleep(time_to_wait)
 
 
+async def update_ping():
+    await asyncio.sleep(30)
+    update_ping_period()
+    config.db_modified = True
+
+
+async def check_db():
+    """Check if there are modified data in cameras table this coroutine will take them and add to common pool."""
+    # Update cameras pinging strategy if there are changes in DB
+    while True:
+
+        if config.db_modified:
+            modified_cameras = get_modified_cameras()
+            logging.info(
+                f"Updating camera pool with: {len(modified_cameras)} new items"
+            )
+            for camera in modified_cameras:
+                try:
+                    del cameras_map[camera.prev_ping_period][camera.id]
+                except Exception:
+                    pass
+                if cameras_map.get(camera.ping_period):
+                    cameras_map[camera.ping_period][camera.id] = camera
+                else:
+                    cameras_map[camera.ping_period] = {}
+                    cameras_map[camera.ping_period][camera.id] = camera
+                camera.status = 0
+            flush_cameras_changes(modified_cameras)
+            config.db_modified = False
+
+        logging.info("DB has been checked. Next iteration in 60 sec.")
+        await asyncio.sleep(60)
+
+
 async def main():
     # Initialize gateway
-    gateway = TBGatewayMqttClient(config.CUBA_URL, 1883, config.TB_GATEWAY_TOKEN)
-
+    gateway = TBGatewayMqttClient(
+        config.CUBA_URL, 1883, config.TB_GATEWAY_TOKEN, client_id=config.TB_CLIENT_ID
+    )
     gateway.connect()
     gateway.gw_set_server_side_rpc_request_handler(handle_rpc)
 
     logging.info(f"Gateway connected on {config.CUBA_URL}")
 
     cameras = get_all_cameras()
-    print(cameras)
 
     # Connect devices
     # await connect_devices(gateway, cameras, device_type=TB_DEVICE_PROFILE)
@@ -108,76 +183,26 @@ async def main():
         cameras = get_cameras_by_ping_period(period)
         cameras_map[period] = {camera.id: camera for camera in cameras}
 
+    for key in cameras_map.keys():
+        logging.info(f"With period {key}: {len(cameras_map[key])} items.")
+
     # TODO: for every key:item run coroutine
     period_tasks = []
     for key, item in cameras_map.items():
         period_tasks.append(
             ping_cameras_list(gateway=gateway, period=key, devices=item.values())
         )
-    await asyncio.gather(*period_tasks)
+
+    asyncio.create_task(update_ping())
+    results = await asyncio.gather(*period_tasks, check_db())
+    print(results)
+    # print(
+    #     f"{time() - start}",
+    #     f"online {sum(results)}",
+    #     f"offline {len(results) - sum(results)}",
+    # )
 
     # TODO: run a coroutine that will check if there were changes in DB via RPC
-
-
-#     # Ping devices and send data to platform
-#     while True:
-#         curr_datetime = datetime.now()
-#         curr_datetime -= timedelta(
-#             seconds=curr_datetime.second, microseconds=curr_datetime.microsecond
-#         )
-
-#         if last_datetime == curr_datetime:
-#             await asyncio.sleep(3)
-#             continue
-
-#         last_datetime = curr_datetime
-
-#         # Initialize counter
-#         global devices_connections_changed
-#         devices_connections_changed = 0
-
-#         loop_st = time()
-#         try:
-#             # Create tasks
-#             tasks = []
-#             for device in CAMERAS:
-#                 tasks.append(
-#                     send_device_connection_status(
-#                         gateway, device["deviceName"], device["IP"], curr_datetime
-#                     )
-#                 )
-
-#             # Waiting for tasks execution
-#             results = await asyncio.gather(*tasks)
-
-#             # Count active devices
-#             total_devices = len(results)
-#             active_devices = sum(results)
-#             inactive_devices = total_devices - active_devices
-
-#             totals_telemetry = {
-#                 "total devices": total_devices,
-#                 "active devices": active_devices,
-#                 "inactive devices": inactive_devices,
-#             }
-#             # Send totals to platform
-#             gateway.gw_send_telemetry(config.TB_TOTALS_DEVICE_NAME, totals_telemetry)
-#         except Exception as e:
-#             logging.critical(f"Error in main loop: {e}")
-
-#         loop_et = time()
-#         loop_exec_t = loop_et - loop_st
-#         logging.info(f"Loop execution time: {loop_exec_t} seconds")
-#         logging.info(f"Devices connections changed: {devices_connections_changed}")
-#         await asyncio.sleep(4)
-
-#     # Disconnect devices
-#     await disconnect_devices(gateway, config.CAMERAS)
-#     logging.info("Devices disconnected")
-
-#     # Disconnect gateway
-#     gateway.disconnect()
-#     logging.info("Gateway disconnected")
 
 
 if __name__ == "__main__":
