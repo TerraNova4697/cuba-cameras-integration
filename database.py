@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from models import Base, Camera
 
 
-engine = create_engine("sqlite:///db.sqlite", echo=True)
+engine = create_engine("sqlite:///db.sqlite")
 
 session = Session(engine, expire_on_commit=True, autoflush=False)
 
@@ -58,19 +58,20 @@ def update_ping_period():
 
     session.execute(
         update(Camera)
-        .values({"ping_period": 30, "status": 1})
+        .values({"ping_period": 6000, "status": 0})
         .where(
-            Camera.id.in_(
-                (
-                    "005003-04_P",
-                    "005005-04_P",
-                    "005006-05_P",
-                    "005007-04_P",
-                    "005010-03_P",
-                    "005012-05_P",
-                    "005014-07_P",
-                )
-            )
+            Camera.id
+            # Camera.id.in_(
+            #     (
+            #         "005003-04_P",
+            #         "005005-04_P",
+            #         "005006-05_P",
+            #         "005007-04_P",
+            #         "005010-03_P",
+            #         "005012-05_P",
+            #         "005014-07_P",
+            #     )
+            # )
         )
     )
 

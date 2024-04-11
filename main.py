@@ -4,7 +4,6 @@ from time import time
 
 from tb_gateway_mqtt import TBGatewayMqttClient
 
-# from reference import send_device_connection_status
 import config
 
 from database import (
@@ -18,19 +17,9 @@ from database import (
 )
 
 
-# log_fh = logging.FileHandler("info.log")
-logging.basicConfig(
-    format="%(asctime)s - %(lineno)s - %(levelname)s - %(message)s",
-    filename="info.log",
-    level=logging.INFO,
-)
-
-
 db_init()
-
-
 cameras_map = {}
-new_cameras = False
+coroutines_map = {}
 
 
 def handle_rpc(gateway, request_body):
@@ -46,6 +35,12 @@ async def connect_devices(
         await asyncio.sleep(0.0001)
 
     logging.info(f"{len(devices)} devices successfully connected")
+
+
+async def disconnect_devices(gateway: TBGatewayMqttClient, devices: list):
+    for device in devices:
+        gateway.gw_disconnect_device(device["deviceName"])
+        await asyncio.sleep(0.0001)
 
 
 async def ping_camera(gateway, name, ip):
@@ -134,10 +129,12 @@ async def update_ping():
     config.db_modified = True
 
 
-async def check_db():
+async def check_db(gateway):
     """Check if there are modified data in cameras table this coroutine will take them and add to common pool."""
     # Update cameras pinging strategy if there are changes in DB
     while True:
+        # logging.info(cameras_map)
+        logging.info(coroutines_map)
 
         if config.db_modified:
             modified_cameras = get_modified_cameras()
@@ -158,51 +155,65 @@ async def check_db():
             flush_cameras_changes(modified_cameras)
             config.db_modified = False
 
+            for key in cameras_map.keys():
+                if not coroutines_map.get(key):
+                    coro = ping_cameras_list(gateway, key, cameras_map[key].values())
+                    asyncio.ensure_future(coro)
+                    coroutines_map[key] = coro
+                if len(cameras_map[key]) == 0:
+                    coro = coroutines_map.get(key)
+                    if coro:
+                        coro.cancel()
+
         logging.info("DB has been checked. Next iteration in 60 sec.")
         await asyncio.sleep(60)
 
 
 async def main():
-    # Initialize gateway
-    gateway = TBGatewayMqttClient(
-        config.CUBA_URL, 1883, config.TB_GATEWAY_TOKEN, client_id=config.TB_CLIENT_ID
-    )
-    gateway.connect()
-    gateway.gw_set_server_side_rpc_request_handler(handle_rpc)
-
-    logging.info(f"Gateway connected on {config.CUBA_URL}")
-
-    cameras = get_all_cameras()
-
-    # Connect devices
-    # await connect_devices(gateway, cameras, device_type=TB_DEVICE_PROFILE)
-
-    # TODO: map cameras acc. to its ping time as key and id:camera list as value.
-    periods = get_unique_ping_periods()
-    for period in periods:
-        cameras = get_cameras_by_ping_period(period)
-        cameras_map[period] = {camera.id: camera for camera in cameras}
-
-    for key in cameras_map.keys():
-        logging.info(f"With period {key}: {len(cameras_map[key])} items.")
-
-    # TODO: for every key:item run coroutine
-    period_tasks = []
-    for key, item in cameras_map.items():
-        period_tasks.append(
-            ping_cameras_list(gateway=gateway, period=key, devices=item.values())
+    try:
+        # Initialize gateway
+        gateway = TBGatewayMqttClient(
+            config.CUBA_URL,
+            1883,
+            config.TB_GATEWAY_TOKEN,
+            client_id=config.TB_CLIENT_ID,
         )
+        gateway.connect()
+        gateway.gw_set_server_side_rpc_request_handler(handle_rpc)
 
-    asyncio.create_task(update_ping())
-    results = await asyncio.gather(*period_tasks, check_db())
-    print(results)
-    # print(
-    #     f"{time() - start}",
-    #     f"online {sum(results)}",
-    #     f"offline {len(results) - sum(results)}",
-    # )
+        logging.info(f"Gateway connected on {config.CUBA_URL}")
 
-    # TODO: run a coroutine that will check if there were changes in DB via RPC
+        cameras = get_all_cameras()
+
+        # Connect devices
+        await connect_devices(gateway, cameras, device_type=config.TB_DEVICE_PROFILE)
+
+        # TODO: map cameras acc. to its ping time as key and id:camera list as value.
+        periods = get_unique_ping_periods()
+        for period in periods:
+            cameras = get_cameras_by_ping_period(period)
+            cameras_map[period] = {camera.id: camera for camera in cameras}
+
+        for key in cameras_map.keys():
+            logging.info(f"With period {key}: {len(cameras_map[key])} items.")
+
+        # TODO: for every key:item run coroutine
+        period_tasks = []
+        for key, item in cameras_map.items():
+            coroutine = ping_cameras_list(
+                gateway=gateway, period=key, devices=item.values()
+            )
+            period_tasks.append(coroutine)
+            coroutines_map[key] = coroutine
+
+        asyncio.create_task(update_ping())  # TODO: delete line.
+        # TODO: run a coroutine that will check if there were changes in DB via RPC
+        await asyncio.gather(*period_tasks, check_db(gateway))
+
+    except Exception as e:
+        logging.exception(e)
+    finally:
+        await disconnect_devices(gateway, cameras)
 
 
 if __name__ == "__main__":
