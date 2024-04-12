@@ -32,10 +32,9 @@ def handle_rpc(gateway: TBGatewayMqttClient, request_body):
     if method == "update_ping_period":
         device = request_body["device"]
         ping_period = data["params"]["seconds"]
-        res = update_ping_period(device, ping_period)
-        if res == ping_period:
-            config.db_modified = True
-        gateway.send_rpc_reply(data["id"], True)
+        update_ping_period(device, ping_period)
+        config.db_modified = True
+        gateway.send_rpc_reply(str(data["id"]), True)
         logging.info("RPC acknowledged.")
 
 
@@ -130,7 +129,7 @@ async def ping_cameras_list(gateway, period, devices):
             config.cameras_online[ip] = status
             results.append(status)
 
-        print(results)
+        # print(results)
         time_end = time()
         time_to_wait = period - (time_end - time_start)
         logging.info(
@@ -181,7 +180,7 @@ async def check_db(gateway):
                 if len(cameras_map[key]) == 0:
                     coro = coroutines_map.get(key)
                     if coro:
-                        coro.cancel()
+                        coro.close()
 
         logging.info("DB has been checked. Next iteration in 60 sec.")
         await asyncio.sleep(60)
