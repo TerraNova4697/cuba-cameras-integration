@@ -40,3 +40,4 @@ PING_COUNT = os.environ["PING_COUNT"]
 PING_INTERVAL = os.environ["PING_INTERVAL"]
 
 db_modified = False
+cameras_online = {}

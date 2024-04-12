@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from time import time
+from datetime import datetime
 
 from tb_gateway_mqtt import TBGatewayMqttClient
 
@@ -54,7 +55,7 @@ async def disconnect_devices(gateway: TBGatewayMqttClient, devices: list):
         await asyncio.sleep(0.0001)
 
 
-async def ping_camera(gateway, name, ip):
+async def ping_camera(gateway, name, ip, ts):
     """Ping device, send telemetry and save data.
 
     Args:
@@ -82,7 +83,10 @@ async def ping_camera(gateway, name, ip):
         connection_status = 1 if process.returncode == 0 else 0
 
         telemetry = {"online": connection_status}
-        gateway.gw_send_telemetry(name, telemetry)
+        ts = datetime.timestamp(ts) * 1000
+        data = [{"ts": ts, "values": telemetry}]
+
+        gateway.gw_send_telemetry(name, data)
 
         # TODO: update camera values in BD
 
@@ -96,7 +100,7 @@ async def ping_camera(gateway, name, ip):
         logging.error(error_msg)
 
     # return connection_status
-    return connection_status
+    return connection_status, ip
 
 
 async def ping_cameras_list(gateway, period, devices):
@@ -111,17 +115,20 @@ async def ping_cameras_list(gateway, period, devices):
     """
     while True:
         time_start = time()
+        ts = datetime.now()
 
         tasks = []
         for device in devices:
             tasks.append(
-                asyncio.create_task(ping_camera(gateway, device.name, device.ip))
+                asyncio.create_task(ping_camera(gateway, device.name, device.ip, ts))
             )
 
         results = []
         for task in tasks:
             await task
-            results.append(task.result())
+            status, ip = task.result()
+            config.cameras_online[ip] = status
+            results.append(status)
 
         print(results)
         time_end = time()
@@ -180,6 +187,25 @@ async def check_db(gateway):
         await asyncio.sleep(60)
 
 
+async def report_total_cameras_online(gateway):
+    await asyncio.sleep(120)
+    while True:
+        total = len(config.cameras_online)
+        online = sum(config.cameras_online.values())
+        offline = total - online
+
+        gateway.gw_send_telemetry(
+            config.TB_TOTALS_DEVICE_NAME,
+            {
+                "total devices": total,
+                "active devices": online,
+                "inactive devices": offline,
+            },
+        )
+
+        await asyncio.sleep(60)
+
+
 async def main():
     try:
         # Initialize gateway
@@ -195,6 +221,8 @@ async def main():
         logging.info(f"Gateway connected on {config.CUBA_URL}")
 
         cameras = get_all_cameras()
+        for camera in cameras:
+            config.cameras_online[camera.ip] = 0
 
         # Connect devices
         await connect_devices(gateway, cameras, device_type=config.TB_DEVICE_PROFILE)
@@ -219,7 +247,9 @@ async def main():
 
         # asyncio.create_task(update_ping())  # TODO: delete line.
         # TODO: run a coroutine that will check if there were changes in DB via RPC
-        await asyncio.gather(*period_tasks, check_db(gateway))
+        await asyncio.gather(
+            *period_tasks, check_db(gateway), report_total_cameras_online(gateway)
+        )
 
     except Exception as e:
         logging.exception(e)
