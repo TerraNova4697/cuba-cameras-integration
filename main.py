@@ -15,6 +15,7 @@ from database import (
     get_modified_cameras,
     flush_cameras_changes,
     update_ping_period,
+    create_camera,
 )
 
 
@@ -36,6 +37,20 @@ def handle_rpc(gateway: TBGatewayMqttClient, request_body):
         config.db_modified = True
         gateway.send_rpc_reply(str(data["id"]), True)
         logging.info("RPC acknowledged.")
+
+    if method == "add_device":
+        camera = create_camera(**data["params"])
+        if cameras_map.get(camera.ping_period):
+            cameras_map[camera.ping_period][camera.id] = camera
+        else:
+            cameras_map[camera.ping_period] = {}
+            cameras_map[camera.ping_period][camera.id] = camera
+
+        for key in cameras_map.keys():
+            if not coroutines_map.get(key):
+                coro = ping_cameras_list(gateway, key, cameras_map[key].values())
+                asyncio.ensure_future(coro)
+                coroutines_map[key] = coro
 
 
 async def connect_devices(

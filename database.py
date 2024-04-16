@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine, select, update
 from sqlalchemy.orm import Session
 from models import Base, Camera
+from sqlite3 import IntegrityError
 
 
 engine = create_engine("sqlite:///db.sqlite")
@@ -44,6 +45,16 @@ def update_ping_period(camera_name, new_ping_period):
 
     session.add(camera)
     session.commit()
+
+
+def create_camera(**kwargs):
+    try:
+        camera = Camera(**kwargs)
+        session.add(camera)
+        session.commit()
+        return camera
+    except IntegrityError:
+        session.rollback()
 
 
 # def get():
