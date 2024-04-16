@@ -75,6 +75,8 @@ def handle_rpc(gateway: TBGatewayMqttClient, request_body):
 async def connect_devices(
     gateway: TBGatewayMqttClient, devices: list, device_type: str = "default"
 ):
+    gateway.gw_connect_device("CAMERAS_TOTALS", "default")
+    await asyncio.sleep(0.0001)
     for device in devices:
         gateway.gw_connect_device(device.name, device_type)
         await asyncio.sleep(0.0001)
@@ -83,6 +85,8 @@ async def connect_devices(
 
 
 async def disconnect_devices(gateway: TBGatewayMqttClient, devices: list):
+    gateway.gw_disconnect_device("CAMERAS_TOTALS")
+    await asyncio.sleep(0.0001)
     for device in devices:
         gateway.gw_disconnect_device(device["deviceName"])
         await asyncio.sleep(0.0001)
