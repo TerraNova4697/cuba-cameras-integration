@@ -51,7 +51,7 @@ def handle_rpc(gateway: TBGatewayMqttClient, request_body):
 
             for key in cameras_map.keys():
                 if not coroutines_map.get(key):
-                    coro = ping_cameras_list(gateway, key, cameras_map[key].values())
+                    coro = ping_cameras_list(gateway, key)
                     asyncio.ensure_future(coro)
                     coroutines_map[key] = coro
         except Exception as e:
@@ -61,11 +61,6 @@ def handle_rpc(gateway: TBGatewayMqttClient, request_body):
         try:
             camera = get_camera_by_id(data["params"]["id"])
             del cameras_map[camera.ping_period][camera.id]
-
-            if len(cameras_map[camera.ping_period]) == 0:
-                coro = coroutines_map.get(key)
-                if coro:
-                    coro.close()
 
             delete_camera(data["params"]["id"])
         except Exception as e:
@@ -140,7 +135,7 @@ async def ping_camera(gateway, name, ip, ts):
     return connection_status, ip
 
 
-async def ping_cameras_list(gateway, period, devices):
+async def ping_cameras_list(gateway, period):
     """This coroutine creates tasks for each device and waits fot tasks to complete.
        Then sleeps for cetain amount of time.
        Works in loop.
@@ -153,6 +148,11 @@ async def ping_cameras_list(gateway, period, devices):
     while True:
         time_start = time()
         ts = datetime.now()
+
+        devices = cameras_map.get(period, {}).values()
+
+        if len(devices) == 0:
+            return
 
         tasks = []
         for device in devices:
@@ -211,13 +211,9 @@ async def check_db(gateway):
 
             for key in cameras_map.keys():
                 if not coroutines_map.get(key):
-                    coro = ping_cameras_list(gateway, key, cameras_map[key].values())
+                    coro = ping_cameras_list(gateway, key)
                     asyncio.ensure_future(coro)
                     coroutines_map[key] = coro
-                if len(cameras_map[key]) == 0:
-                    coro = coroutines_map.get(key)
-                    if coro:
-                        coro.close()
 
         logging.info("DB has been checked. Next iteration in 60 sec.")
         await asyncio.sleep(60)
@@ -275,9 +271,7 @@ async def main():
         # TODO: for every key:item run coroutine
         # period_tasks = []
         for key, item in cameras_map.items():
-            coroutine = ping_cameras_list(
-                gateway=gateway, period=key, devices=item.values()
-            )
+            coroutine = ping_cameras_list(gateway=gateway, period=key)
             # period_tasks.append(coroutine)
             coroutines_map[key] = coroutine
 
