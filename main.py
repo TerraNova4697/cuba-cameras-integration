@@ -156,14 +156,13 @@ async def ping_cameras_list(gateway, period, devices):
 
         tasks = []
         for device in devices:
-            tasks.append(
-                asyncio.create_task(ping_camera(gateway, device.name, device.ip, ts))
-            )
+            tasks.append(ping_camera(gateway, device.name, device.ip, ts))
+
+        finished = await asyncio.gather(*tasks)
 
         results = []
-        for task in tasks:
-            await task
-            status, ip = task.result()
+        for task in finished:
+            status, ip = task[0], task[1]
             config.cameras_online[ip] = status
             results.append(status)
 
