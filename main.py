@@ -273,18 +273,20 @@ async def main():
             logging.info(f"With period {key}: {len(cameras_map[key])} items.")
 
         # TODO: for every key:item run coroutine
-        period_tasks = []
+        # period_tasks = []
         for key, item in cameras_map.items():
             coroutine = ping_cameras_list(
                 gateway=gateway, period=key, devices=item.values()
             )
-            period_tasks.append(coroutine)
+            # period_tasks.append(coroutine)
             coroutines_map[key] = coroutine
 
         # asyncio.create_task(update_ping())  # TODO: delete line.
         # TODO: run a coroutine that will check if there were changes in DB via RPC
         await asyncio.gather(
-            *period_tasks, check_db(gateway), report_total_cameras_online(gateway)
+            *coroutines_map.values(),
+            check_db(gateway),
+            report_total_cameras_online(gateway),
         )
 
     except Exception as e:
