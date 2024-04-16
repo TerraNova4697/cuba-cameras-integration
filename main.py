@@ -16,6 +16,8 @@ from database import (
     flush_cameras_changes,
     update_ping_period,
     create_camera,
+    get_camera_by_id,
+    delete_camera,
 )
 
 
@@ -39,18 +41,35 @@ def handle_rpc(gateway: TBGatewayMqttClient, request_body):
         logging.info("RPC acknowledged.")
 
     if method == "add_device":
-        camera = create_camera(**data["params"])
-        if cameras_map.get(camera.ping_period):
-            cameras_map[camera.ping_period][camera.id] = camera
-        else:
-            cameras_map[camera.ping_period] = {}
-            cameras_map[camera.ping_period][camera.id] = camera
+        try:
+            camera = create_camera(**data["params"])
+            if cameras_map.get(camera.ping_period):
+                cameras_map[camera.ping_period][camera.id] = camera
+            else:
+                cameras_map[camera.ping_period] = {}
+                cameras_map[camera.ping_period][camera.id] = camera
 
-        for key in cameras_map.keys():
-            if not coroutines_map.get(key):
-                coro = ping_cameras_list(gateway, key, cameras_map[key].values())
-                asyncio.ensure_future(coro)
-                coroutines_map[key] = coro
+            for key in cameras_map.keys():
+                if not coroutines_map.get(key):
+                    coro = ping_cameras_list(gateway, key, cameras_map[key].values())
+                    asyncio.ensure_future(coro)
+                    coroutines_map[key] = coro
+        except Exception as e:
+            logging.exception(f"Error while executing 'add_device': {e}")
+
+    if method == "delete_device":
+        try:
+            camera = get_camera_by_id(data["params"]["id"])
+            del cameras_map[camera.ping_period][camera.id]
+
+            if len(cameras_map[camera.ping_period]) == 0:
+                coro = coroutines_map.get(key)
+                if coro:
+                    coro.close()
+
+            delete_camera(data["params"]["id"])
+        except Exception as e:
+            logging.exception(f"Error while executing 'delete_device': {e}")
 
 
 async def connect_devices(

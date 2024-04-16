@@ -2,6 +2,7 @@ from sqlalchemy import create_engine, select, update
 from sqlalchemy.orm import Session
 from models import Base, Camera
 from sqlite3 import IntegrityError
+import logging
 
 
 engine = create_engine("sqlite:///db.sqlite")
@@ -55,6 +56,21 @@ def create_camera(**kwargs):
         return camera
     except IntegrityError:
         session.rollback()
+
+
+def get_camera_by_id(id):
+    try:
+        return session.scalar(select(Camera).where(Camera.id == id))
+    except Exception as e:
+        logging.exception(f"Error while fetching camera: {e}")
+
+
+def delete_camera(camera):
+    try:
+        session.delete(camera)
+        session.commit()
+    except Exception as e:
+        logging.exception(f"Error while deleting camera: {e}")
 
 
 # def get():
