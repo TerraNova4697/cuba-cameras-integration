@@ -49,11 +49,6 @@ def handle_rpc(gateway: TBGatewayMqttClient, request_body):
                 cameras_map[camera.ping_period] = {}
                 cameras_map[camera.ping_period][camera.id] = camera
 
-            for key in cameras_map.keys():
-                if not coroutines_map.get(key):
-                    coro = ping_cameras_list(gateway, key)
-                    asyncio.ensure_future(coro)
-                    coroutines_map[key] = coro
         except Exception as e:
             logging.exception(f"Error while executing 'add_device': {e}")
 
@@ -152,7 +147,7 @@ async def ping_cameras_list(gateway, period):
         devices = cameras_map.get(period, {}).values()
 
         if len(devices) == 0:
-            return
+            await asyncio.sleep(period)
 
         tasks = []
         for device in devices:
@@ -212,7 +207,7 @@ async def check_db(gateway):
             for key in cameras_map.keys():
                 if not coroutines_map.get(key):
                     coro = ping_cameras_list(gateway, key)
-                    asyncio.ensure_future(coro)
+                    asyncio.create_task(coro)
                     coroutines_map[key] = coro
 
         logging.info("DB has been checked. Next iteration in 60 sec.")
