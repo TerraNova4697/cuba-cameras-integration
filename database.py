@@ -58,7 +58,7 @@ def create_camera(**kwargs):
         session.rollback()
 
 
-def get_camera_by_id(name):
+def get_camera_by_name(name):
     try:
         return session.scalar(select(Camera).where(Camera.name == name))
     except Exception as e:
