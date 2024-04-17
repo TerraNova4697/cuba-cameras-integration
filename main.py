@@ -31,13 +31,14 @@ def handle_rpc(gateway: TBGatewayMqttClient, request_body):
 
     data = request_body["data"]
     method = data["method"]
+    device = request_body["device"]
+    request_id = str(data["id"])
 
     if method == "update_ping_period":
-        device = request_body["device"]
         ping_period = data["params"]["seconds"]
         update_ping_period(device, ping_period)
         config.db_modified = True
-        gateway.send_rpc_reply(str(data["id"]), True)
+        gateway.gw_send_rpc_reply(device, request_id, True)
         logging.info("RPC acknowledged.")
 
     if method == "add_device":
@@ -48,6 +49,7 @@ def handle_rpc(gateway: TBGatewayMqttClient, request_body):
             else:
                 cameras_map[camera.ping_period] = {}
                 cameras_map[camera.ping_period][camera.id] = camera
+            gateway.gw_send_rpc_reply(device, request_id, True)
 
         except Exception as e:
             logging.exception(f"Error while executing 'add_device': {e}")
@@ -61,6 +63,7 @@ def handle_rpc(gateway: TBGatewayMqttClient, request_body):
                 pass
 
             delete_camera(camera)
+            gateway.gw_send_rpc_reply(device, request_id, True)
         except Exception as e:
             logging.exception(f"Error while executing 'delete_device': {e}")
 
