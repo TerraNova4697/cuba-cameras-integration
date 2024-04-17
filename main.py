@@ -60,7 +60,7 @@ def handle_rpc(gateway: TBGatewayMqttClient, request_body):
             except AttributeError:
                 pass
 
-            delete_camera(data["params"]["id"])
+            delete_camera(camera)
         except Exception as e:
             logging.exception(f"Error while executing 'delete_device': {e}")
 
