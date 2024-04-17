@@ -54,7 +54,7 @@ def handle_rpc(gateway: TBGatewayMqttClient, request_body):
 
     if method == "delete_device":
         try:
-            camera = get_camera_by_name(data["params"]["id"])
+            camera = get_camera_by_name(data["params"]["name"])
             try:
                 del cameras_map[camera.ping_period][camera.id]
             except AttributeError:
