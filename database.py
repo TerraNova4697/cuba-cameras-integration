@@ -65,6 +65,14 @@ def get_camera_by_name(name):
         logging.exception(f"Error while fetching camera: {e}")
 
 
+def update_camera(camera):
+    try:
+        session.add(camera)
+        session.commit()
+    except Exception as e:
+        logging.exception(f"Error while updating camera: {e}")
+
+
 def delete_camera(camera):
     try:
         session.delete(camera)

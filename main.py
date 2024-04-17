@@ -18,6 +18,7 @@ from database import (
     create_camera,
     get_camera_by_name,
     delete_camera,
+    update_camera,
 )
 
 
@@ -66,6 +67,19 @@ def handle_rpc(gateway: TBGatewayMqttClient, request_body):
             gateway.gw_send_rpc_reply(device, request_id, True)
         except Exception as e:
             logging.exception(f"Error while executing 'delete_device': {e}")
+
+    if method == "update_device":
+        try:
+            camera = get_camera_by_name(data["params"]["name"])
+            del cameras_map[camera.ping_period][camera.id]
+            camera.id = data["params"]["id"]
+            camera.ip = data["params"]["ip"]
+            update_camera(camera)
+            cameras_map[camera.ping_period][camera.id] = camera
+            gateway.gw_send_rpc_reply(device, request_id, True)
+
+        except Exception as e:
+            logging.exception(f"Error while executing 'update_device': {e}")
 
 
 async def connect_devices(
