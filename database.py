@@ -58,9 +58,9 @@ def create_camera(**kwargs):
         session.rollback()
 
 
-def get_camera_by_id(id):
+def get_camera_by_id(name):
     try:
-        return session.scalar(select(Camera).where(Camera.id == id))
+        return session.scalar(select(Camera).where(Camera.name == name))
     except Exception as e:
         logging.exception(f"Error while fetching camera: {e}")
 

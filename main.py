@@ -16,7 +16,7 @@ from database import (
     flush_cameras_changes,
     update_ping_period,
     create_camera,
-    get_camera_by_id,
+    get_camera_by_name,
     delete_camera,
 )
 
@@ -54,8 +54,11 @@ def handle_rpc(gateway: TBGatewayMqttClient, request_body):
 
     if method == "delete_device":
         try:
-            camera = get_camera_by_id(data["params"]["id"])
-            del cameras_map[camera.ping_period][camera.id]
+            camera = get_camera_by_name(data["params"]["id"])
+            try:
+                del cameras_map[camera.ping_period][camera.id]
+            except AttributeError:
+                pass
 
             delete_camera(data["params"]["id"])
         except Exception as e:
