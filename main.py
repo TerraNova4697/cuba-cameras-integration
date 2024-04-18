@@ -74,6 +74,7 @@ def handle_rpc(gateway: TBGatewayMqttClient, request_body):
             del cameras_map[camera.ping_period][camera.id]
             camera.id = data["params"]["id"]
             camera.ip = data["params"]["ip"]
+            camera.name = data["params"]["newName"]
             update_camera(camera)
             cameras_map[camera.ping_period][camera.id] = camera
             gateway.gw_send_rpc_reply(device, request_id, True)
