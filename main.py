@@ -38,10 +38,13 @@ def handle_rpc(gateway: TBGatewayMqttClient, request_body):
     if method == "update_ping_period":
         try:
             ping_period = data["params"]["seconds"]
-            update_ping_period(device, ping_period)
-            config.db_modified = True
-            gateway.gw_send_rpc_reply(device, request_id, True)
-            logging.info("RPC acknowledged.")
+            res = update_ping_period(device, ping_period)
+            if res:
+                config.db_modified = True
+                gateway.gw_send_rpc_reply(device, request_id, True)
+                logging.info("RPC acknowledged.")
+            else:
+                gateway.gw_send_rpc_reply(device, request_id, False)
         except Exception as e:
             logging.exception(f"Error while executing 'update_ping_period': {e}")
 
@@ -58,6 +61,8 @@ def handle_rpc(gateway: TBGatewayMqttClient, request_body):
                     cameras_map[camera.ping_period] = {}
                     cameras_map[camera.ping_period][camera.id] = camera
                 gateway.gw_send_rpc_reply(device, request_id, True)
+            else:
+                gateway.gw_send_rpc_reply(device, request_id, False)
 
         except Exception as e:
             logging.exception(f"Error while executing 'add_device': {e}")
@@ -71,7 +76,11 @@ def handle_rpc(gateway: TBGatewayMqttClient, request_body):
                 except AttributeError:
                     pass
 
-                delete_camera(camera)
+                res = delete_camera(camera)
+                if not res:
+                    gateway.gw_send_rpc_reply(device, request_id, False)
+                    return
+
             gateway.gw_send_rpc_reply(device, request_id, True)
         except Exception as e:
             logging.exception(f"Error while executing 'delete_device': {e}")
@@ -80,13 +89,21 @@ def handle_rpc(gateway: TBGatewayMqttClient, request_body):
         try:
             camera = get_camera_by_name(data["params"]["name"])
             if camera:
-                del cameras_map[camera.ping_period][camera.id]
-                camera.id = data["params"]["id"]
-                camera.ip = data["params"]["ip"]
-                camera.name = data["params"]["newName"]
-                update_camera(camera)
-                cameras_map[camera.ping_period][camera.id] = camera
-                gateway.gw_send_rpc_reply(device, request_id, True)
+                try:
+                    del cameras_map[camera.ping_period][camera.id]
+                    camera.id = data["params"]["id"]
+                    camera.ip = data["params"]["ip"]
+                    camera.name = data["params"]["newName"]
+                    res = update_camera(camera)
+                    if res:
+                        cameras_map[camera.ping_period][camera.id] = camera
+                        gateway.gw_send_rpc_reply(device, request_id, True)
+                    else:
+                        gateway.gw_send_rpc_reply(device, request_id, False)
+                except AttributeError:
+                    gateway.gw_send_rpc_reply(device, request_id, False)
+            else:
+                gateway.gw_send_rpc_reply(device, request_id, False)
 
         except Exception as e:
             logging.exception(f"Error while executing 'update_device': {e}")

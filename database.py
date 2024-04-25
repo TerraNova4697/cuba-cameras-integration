@@ -44,14 +44,19 @@ def flush_cameras_changes(cameras):
 
 
 def update_ping_period(camera_name, new_ping_period):
-    with Session(engine, expire_on_commit=False) as session:
-        camera = session.scalar(select(Camera).where(Camera.name == camera_name))
-        camera.prev_ping_period = camera.ping_period
-        camera.ping_period = new_ping_period
-        camera.status = 1
+    try:
+        with Session(engine, expire_on_commit=False) as session:
+            camera = session.scalar(select(Camera).where(Camera.name == camera_name))
+            camera.prev_ping_period = camera.ping_period
+            camera.ping_period = new_ping_period
+            camera.status = 1
 
-        session.add(camera)
-        session.commit()
+            session.add(camera)
+            session.commit()
+            return True
+    except Exception as e:
+        logging.exception(f"Error while updating camera: {e}")
+        return False
 
 
 def create_camera(**kwargs):
@@ -81,8 +86,10 @@ def update_camera(camera):
         with Session(engine, expire_on_commit=False) as session:
             session.add(camera)
             session.commit()
+            return True
     except Exception as e:
         logging.exception(f"Error while updating camera: {e}")
+        return False
 
 
 def delete_camera(camera):
@@ -90,8 +97,10 @@ def delete_camera(camera):
         with Session(engine, expire_on_commit=False) as session:
             session.delete(camera)
             session.commit()
+            return True
     except Exception as e:
         logging.exception(f"Error while deleting camera: {e}")
+        return False
 
 
 def update_ping_period_dev():
