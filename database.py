@@ -60,6 +60,9 @@ def create_camera(**kwargs):
             camera = Camera(**kwargs)
             session.add(camera)
             session.commit()
+            logging.info(
+                f"new camera in {__file__}: {camera.name}, {camera.ping_period}"
+            )
             return camera
     except IntegrityError as e:
         logging.exception(f"Error while fetching camera: {e}")

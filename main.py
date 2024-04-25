@@ -49,6 +49,9 @@ def handle_rpc(gateway: TBGatewayMqttClient, request_body):
         try:
             camera = create_camera(**data["params"])
             if camera:
+                logging.info(
+                    f"new camera in {__file__}: {camera.name}, {camera.ping_period}"
+                )
                 if cameras_map.get(camera.ping_period):
                     cameras_map[camera.ping_period][camera.id] = camera
                 else:
