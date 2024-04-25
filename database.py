@@ -15,36 +15,36 @@ def db_init():
 
 
 def get_all_cameras():
-    with Session(engine) as session:
+    with Session(engine, expire_on_commit=False) as session:
         return session.scalars(select(Camera)).all()
 
 
 def get_unique_ping_periods():
-    with Session(engine) as session:
+    with Session(engine, expire_on_commit=False) as session:
         return session.scalars(select(Camera.ping_period)).unique().all()
 
 
 def get_cameras_by_ping_period(ping_period):
-    with Session(engine) as session:
+    with Session(engine, expire_on_commit=False) as session:
         return session.scalars(
             select(Camera).where(Camera.ping_period == ping_period)
         ).all()
 
 
 def get_modified_cameras():
-    with Session(engine) as session:
+    with Session(engine, expire_on_commit=False) as session:
         return session.scalars(select(Camera).where(Camera.status == 1)).all()
 
 
 def flush_cameras_changes(cameras):
     if cameras:
-        with Session(engine) as session:
+        with Session(engine, expire_on_commit=False) as session:
             session.add_all(cameras)
             session.commit()
 
 
 def update_ping_period(camera_name, new_ping_period):
-    with Session(engine) as session:
+    with Session(engine, expire_on_commit=False) as session:
         camera = session.scalar(select(Camera).where(Camera.name == camera_name))
         camera.prev_ping_period = camera.ping_period
         camera.ping_period = new_ping_period
@@ -56,7 +56,7 @@ def update_ping_period(camera_name, new_ping_period):
 
 def create_camera(**kwargs):
     try:
-        with Session(engine) as session:
+        with Session(engine, expire_on_commit=False) as session:
             camera = Camera(**kwargs)
             session.add(camera)
             session.commit()
@@ -70,7 +70,7 @@ def create_camera(**kwargs):
 
 def get_camera_by_name(name):
     try:
-        with Session(engine) as session:
+        with Session(engine, expire_on_commit=False) as session:
             return session.scalar(select(Camera).where(Camera.name == name))
     except Exception as e:
         logging.exception(f"Error while fetching camera: {e}")
@@ -78,7 +78,7 @@ def get_camera_by_name(name):
 
 def update_camera(camera):
     try:
-        with Session(engine) as session:
+        with Session(engine, expire_on_commit=False) as session:
             session.add(camera)
             session.commit()
     except Exception as e:
@@ -87,7 +87,7 @@ def update_camera(camera):
 
 def delete_camera(camera):
     try:
-        with Session(engine) as session:
+        with Session(engine, expire_on_commit=False) as session:
             session.delete(camera)
             session.commit()
     except Exception as e:
@@ -95,7 +95,7 @@ def delete_camera(camera):
 
 
 def update_ping_period_dev():
-    with Session(engine) as session:
+    with Session(engine, expire_on_commit=False) as session:
         session.execute(
             update(Camera).values({"ping_period": 60, "status": 0}).where(Camera.id)
         )
