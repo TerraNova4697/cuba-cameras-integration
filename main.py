@@ -36,21 +36,25 @@ def handle_rpc(gateway: TBGatewayMqttClient, request_body):
     request_id = str(data["id"])
 
     if method == "update_ping_period":
-        ping_period = data["params"]["seconds"]
-        update_ping_period(device, ping_period)
-        config.db_modified = True
-        gateway.gw_send_rpc_reply(device, request_id, True)
-        logging.info("RPC acknowledged.")
+        try:
+            ping_period = data["params"]["seconds"]
+            update_ping_period(device, ping_period)
+            config.db_modified = True
+            gateway.gw_send_rpc_reply(device, request_id, True)
+            logging.info("RPC acknowledged.")
+        except Exception as e:
+            logging.exception(f"Error while executing 'update_ping_period': {e}")
 
     if method == "add_device":
         try:
             camera = create_camera(**data["params"])
-            if cameras_map.get(camera.ping_period):
-                cameras_map[camera.ping_period][camera.id] = camera
-            else:
-                cameras_map[camera.ping_period] = {}
-                cameras_map[camera.ping_period][camera.id] = camera
-            gateway.gw_send_rpc_reply(device, request_id, True)
+            if camera:
+                if cameras_map.get(camera.ping_period):
+                    cameras_map[camera.ping_period][camera.id] = camera
+                else:
+                    cameras_map[camera.ping_period] = {}
+                    cameras_map[camera.ping_period][camera.id] = camera
+                gateway.gw_send_rpc_reply(device, request_id, True)
 
         except Exception as e:
             logging.exception(f"Error while executing 'add_device': {e}")
@@ -58,12 +62,13 @@ def handle_rpc(gateway: TBGatewayMqttClient, request_body):
     if method == "delete_device":
         try:
             camera = get_camera_by_name(data["params"]["name"])
-            try:
-                del cameras_map[camera.ping_period][camera.id]
-            except AttributeError:
-                pass
+            if camera:
+                try:
+                    del cameras_map[camera.ping_period][camera.id]
+                except AttributeError:
+                    pass
 
-            delete_camera(camera)
+                delete_camera(camera)
             gateway.gw_send_rpc_reply(device, request_id, True)
         except Exception as e:
             logging.exception(f"Error while executing 'delete_device': {e}")
@@ -71,13 +76,14 @@ def handle_rpc(gateway: TBGatewayMqttClient, request_body):
     if method == "update_device":
         try:
             camera = get_camera_by_name(data["params"]["name"])
-            del cameras_map[camera.ping_period][camera.id]
-            camera.id = data["params"]["id"]
-            camera.ip = data["params"]["ip"]
-            camera.name = data["params"]["newName"]
-            update_camera(camera)
-            cameras_map[camera.ping_period][camera.id] = camera
-            gateway.gw_send_rpc_reply(device, request_id, True)
+            if camera:
+                del cameras_map[camera.ping_period][camera.id]
+                camera.id = data["params"]["id"]
+                camera.ip = data["params"]["ip"]
+                camera.name = data["params"]["newName"]
+                update_camera(camera)
+                cameras_map[camera.ping_period][camera.id] = camera
+                gateway.gw_send_rpc_reply(device, request_id, True)
 
         except Exception as e:
             logging.exception(f"Error while executing 'update_device': {e}")
