@@ -91,17 +91,18 @@ def handle_rpc(gateway: TBGatewayMqttClient, request_body):
             if camera:
                 try:
                     del cameras_map[camera.ping_period][camera.id]
-                    camera.id = data["params"]["id"]
-                    camera.ip = data["params"]["ip"]
-                    camera.name = data["params"]["newName"]
-                    res = update_camera(camera)
-                    if res:
-                        cameras_map[camera.ping_period][camera.id] = camera
-                        gateway.gw_send_rpc_reply(device, request_id, True)
-                    else:
-                        gateway.gw_send_rpc_reply(device, request_id, False)
                 except AttributeError:
+                    pass
+                camera.id = data["params"]["id"]
+                camera.ip = data["params"]["ip"]
+                camera.name = data["params"]["newName"]
+                res = update_camera(camera)
+                if res:
+                    cameras_map[camera.ping_period][camera.id] = camera
+                    gateway.gw_send_rpc_reply(device, request_id, True)
+                else:
                     gateway.gw_send_rpc_reply(device, request_id, False)
+
             else:
                 gateway.gw_send_rpc_reply(device, request_id, False)
 
