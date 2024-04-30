@@ -20,4 +20,7 @@ with open("data.json") as f:
     data = json.load(f)
 
     for item in data:
-        create_camera(**item)
+        try:
+            create_camera(**item)
+        except Exception as e:
+            print(e)

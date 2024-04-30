@@ -1,9 +1,11 @@
 import csv
 from database import engine
 from sqlalchemy.orm import Session
-from database import get_camera_by_name, get_all_cameras, create_camera  # noqa
+from database import db_init, get_camera_by_name, get_all_cameras, create_camera  # noqa
 import json
 
+
+db_init()
 
 cameras = get_all_cameras()
 print(len(cameras))
@@ -26,8 +28,8 @@ with open("list.csv", "r") as cameras_list:
         print(len(lack_rows))
 
 
-with open("data.json") as f:
-    data = json.load(f)
+# with open("data.json") as f:
+#     data = json.load(f)
 
-    for item in data:
-        create_camera(**item)
+#     for item in data:
+#         create_camera(**item)
