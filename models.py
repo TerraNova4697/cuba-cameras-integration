@@ -1,3 +1,6 @@
+"""Here are the models for database creation.
+"""
+
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.sql import func
 from sqlalchemy import String

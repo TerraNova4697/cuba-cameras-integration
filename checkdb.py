@@ -1,3 +1,6 @@
+"""Development only script.
+"""
+
 import csv
 from database import engine
 from sqlalchemy.orm import Session
