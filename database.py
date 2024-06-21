@@ -137,6 +137,23 @@ def get_camera_by_name(name: str) -> Camera | None:
         logging.exception(f"Error while fetching camera: {e}")
 
 
+def get_camera_by_id(id: str) -> Camera | None:
+    """
+    Fetch camera with given id if exists. Return None otherwise.
+
+    Args:
+        id (str): Camera.id.
+
+    Returns:
+        Camera | None: Either newly created Camera or None object.
+    """
+    try:
+        with Session(engine, expire_on_commit=False) as session:
+            return session.scalar(select(Camera).where(Camera.id == id))
+    except Exception as e:
+        logging.exception(f"Error while fetching camera: {e}")
+
+
 def update_camera(camera: Camera) -> bool:
     """Update given camera.
 

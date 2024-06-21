@@ -3,4 +3,4 @@ venv/
 .env
 info.log
 info_debug.log
-db.sqlite
+
