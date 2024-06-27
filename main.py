@@ -5,7 +5,7 @@ This module is the entry point of the programm. It checks which camera from the 
 import asyncio
 import logging
 from time import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from tb_gateway_mqtt import TBGatewayMqttClient
 
@@ -202,6 +202,7 @@ async def ping_camera(
     connection_status = 0
     try:
         # Ping device
+        creating_process = datetime.now()
         process = await asyncio.create_subprocess_exec(
             "ping",
             "-c",
@@ -212,6 +213,11 @@ async def ping_camera(
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
         )
+        new_time = datetime.now()
+        if (new_time - creating_process) > timedelta(seconds=30):
+            logging.log(
+                f"Creating process took {datetime.now() - creating_process} sec"
+            )
         await process.communicate()
         connection_status = 1 if process.returncode == 0 else 0
 
@@ -247,11 +253,11 @@ async def ping_cameras_list(gateway: TBGatewayMqttClient, period: int) -> None:
         gateway (TBGatewayMqttClient): Gateway.
         period (int): Ping period.
     """
+    ts = datetime.now()
 
     while True:
         # All telemetry will be sent with same timestamp, which is created at this point.
         time_start = time()
-        ts = datetime.now()
 
         # Get cameras with given ping period from cameras pool.
         devices = cameras_map.get(period, {}).values()
@@ -261,19 +267,25 @@ async def ping_cameras_list(gateway: TBGatewayMqttClient, period: int) -> None:
             await asyncio.sleep(period)
 
         # Create task of camera ping for every device.
+        creating_coros = datetime.now()
         tasks = []
         for device in devices:
             tasks.append(ping_camera(gateway, device.name, device.ip, ts))
+        logging.log(f"Creating coros took {datetime.now() - creating_coros} sec")
 
         # Wait for every task to be completed.
+        gatehring_tasks = datetime.now()
         finished = await asyncio.gather(*tasks)
+        logging.log(f"implementing coros took {datetime.now() - gatehring_tasks} sec")
 
         # Update amount of cameras online and collect camera's statuses in list.
+        updating = datetime.now()
         results = []
         for task in finished:
             status, ip = task[0], task[1]
             config.cameras_online[ip] = status
             results.append(status)
+        logging.log(f"Updating took {datetime.now() - updating} sec")
 
         # Calculate time to wait till next iteration and suspend coroutine.
         # If time to wait is less than 0, restart iteration immediately.
@@ -283,7 +295,8 @@ async def ping_cameras_list(gateway: TBGatewayMqttClient, period: int) -> None:
             f"With period {period} ({len(devices)} items). Coroutine finished in {time_end-time_start} sec. \
             Next iteration in {time_to_wait} sec."
         )
-        if time_to_wait > 0:
+        ts += timedelta(seconds=period)
+        if time_to_wait > 0 and ts > datetime.now():
             await asyncio.sleep(time_to_wait)
 
 
@@ -415,7 +428,7 @@ async def main() -> None:
             # Coroutine, that checks if DB was modified and applies needed logic if necessary.
             check_db(gateway),
             # Coroutine that sends telemetry of devices count online, devices count offline, devices count total.
-            report_total_cameras_online(gateway),
+            # report_total_cameras_online(gateway),
         )
 
     except Exception as e:
