@@ -180,7 +180,7 @@ async def disconnect_devices(gateway: TBGatewayMqttClient, devices: list) -> Non
     gateway.gw_disconnect_device("CAMERAS_TOTALS")
     await asyncio.sleep(0.0001)
     for device in devices:
-        gateway.gw_disconnect_device(device["deviceName"])
+        gateway.gw_disconnect_device(device.name)
         await asyncio.sleep(0.0001)
 
 
