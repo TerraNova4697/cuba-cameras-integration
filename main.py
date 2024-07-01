@@ -215,7 +215,7 @@ async def ping_camera(
         )
         new_time = datetime.now()
         if (new_time - creating_process) > timedelta(seconds=30):
-            logging.log(
+            logging.info(
                 f"Creating process took {datetime.now() - creating_process} sec"
             )
         await process.communicate()
@@ -271,12 +271,12 @@ async def ping_cameras_list(gateway: TBGatewayMqttClient, period: int) -> None:
         tasks = []
         for device in devices:
             tasks.append(ping_camera(gateway, device.name, device.ip, ts))
-        logging.log(f"Creating coros took {datetime.now() - creating_coros} sec")
+        logging.info(f"Creating coros took {datetime.now() - creating_coros} sec")
 
         # Wait for every task to be completed.
         gatehring_tasks = datetime.now()
         finished = await asyncio.gather(*tasks)
-        logging.log(f"implementing coros took {datetime.now() - gatehring_tasks} sec")
+        logging.info(f"implementing coros took {datetime.now() - gatehring_tasks} sec")
 
         # Update amount of cameras online and collect camera's statuses in list.
         updating = datetime.now()
@@ -285,7 +285,7 @@ async def ping_cameras_list(gateway: TBGatewayMqttClient, period: int) -> None:
             status, ip = task[0], task[1]
             config.cameras_online[ip] = status
             results.append(status)
-        logging.log(f"Updating took {datetime.now() - updating} sec")
+        logging.info(f"Updating took {datetime.now() - updating} sec")
 
         # Calculate time to wait till next iteration and suspend coroutine.
         # If time to wait is less than 0, restart iteration immediately.
