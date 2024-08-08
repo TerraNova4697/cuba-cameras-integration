@@ -66,90 +66,6 @@ def handle_rpc(gateway: TBGatewayMqttClient, request_body: dict) -> None:
         except Exception as e:
             logging.exception(f"Error while executing 'update_ping_period': {e}")
 
-    if method == "add_device":
-        try:
-
-            # Create new device
-            camera = create_camera(**data["params"])
-            if camera:
-                logging.info(
-                    f"new camera in {__file__}: {camera.name}, {camera.ping_period}"
-                )
-
-                # Put new camera in the pool with it's ping period. If there is no such, create.
-                if cameras_map.get(camera.ping_period):
-                    cameras_map[camera.ping_period][camera.id] = camera
-                else:
-                    cameras_map[camera.ping_period] = {}
-                    cameras_map[camera.ping_period][camera.id] = camera
-
-                # Send RPC reply "successful"
-                gateway.gw_send_rpc_reply(device, request_id, True)
-            else:
-                # Send RPC reply "unsuccessful"
-                gateway.gw_send_rpc_reply(device, request_id, False)
-
-        except Exception as e:
-            logging.exception(f"Error while executing 'add_device': {e}")
-
-    if method == "delete_device":
-        try:
-            # Get camera from DB
-            camera = get_camera_by_name(data["params"]["name"])
-
-            # If there is such, delete it from cameras pool and DB
-            if camera:
-                try:
-                    del cameras_map[camera.ping_period][camera.id]
-                except AttributeError:
-                    pass
-
-                res = delete_camera(camera)
-
-                # If camera deleted, send RPC reply "successful"
-                if not res:
-                    gateway.gw_send_rpc_reply(device, request_id, False)
-                    return
-
-            # If camera not found, send RPC reply "unsuccessful"
-            gateway.gw_send_rpc_reply(device, request_id, True)
-        except Exception as e:
-            logging.exception(f"Error while executing 'delete_device': {e}")
-
-    if method == "update_device":
-        try:
-
-            # Get camera from DB
-            camera = get_camera_by_name(data["params"]["name"])
-            if camera:
-
-                # Delete old camera from corresponding cameras pool
-                try:
-                    del cameras_map[camera.ping_period][camera.id]
-                except AttributeError:
-                    pass
-
-                # Update camera parameters and save to DB
-                camera.id = data["params"]["id"]
-                camera.ip = data["params"]["ip"]
-                camera.name = data["params"]["newName"]
-                res = update_camera(camera)
-
-                # If successful, put camera in corresponding cameras pool and send RPC reply "successful".
-                # Otherwise "unsuccessful"
-                if res:
-                    cameras_map[camera.ping_period][camera.id] = camera
-                    gateway.gw_send_rpc_reply(device, request_id, True)
-                else:
-                    gateway.gw_send_rpc_reply(device, request_id, False)
-
-            # If camera not found in DB, send RPC reply "unsuccessful"
-            else:
-                gateway.gw_send_rpc_reply(device, request_id, False)
-
-        except Exception as e:
-            logging.exception(f"Error while executing 'update_device': {e}")
-
 
 async def connect_devices(
     gateway: TBGatewayMqttClient, devices: list, device_type: str = "default"
@@ -161,7 +77,6 @@ async def connect_devices(
         devices (list): List of devices.
         device_type (str, optional): Type of device. Defaults to "default".
     """
-    gateway.gw_connect_device("CAMERAS_TOTALS", "default")
     await asyncio.sleep(0.0001)
     for device in devices:
         gateway.gw_connect_device(device.name, device_type)
@@ -177,7 +92,6 @@ async def disconnect_devices(gateway: TBGatewayMqttClient, devices: list) -> Non
         gateway (TBGatewayMqttClient): Gateway.
         devices (list): List of devices.
     """
-    gateway.gw_disconnect_device("CAMERAS_TOTALS")
     await asyncio.sleep(0.0001)
     for device in devices:
         gateway.gw_disconnect_device(device.name)
@@ -203,15 +117,18 @@ async def ping_camera(
     try:
         # Ping device
         creating_process = datetime.now()
-        process = await asyncio.create_subprocess_exec(
-            "ping",
-            "-c",
-            config.PING_COUNT,
-            "-i",
-            config.PING_INTERVAL,
-            ip,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
+        process = await asyncio.wait_for(
+            asyncio.create_subprocess_exec(
+                "ping",
+                "-c",
+                config.PING_COUNT,
+                "-i",
+                config.PING_INTERVAL,
+                ip,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            ),
+            timeout=60.0,
         )
         new_time = datetime.now()
         if (new_time - creating_process) > timedelta(seconds=30):
@@ -264,6 +181,8 @@ async def ping_cameras_list(gateway: TBGatewayMqttClient, period: int) -> None:
 
         # If there is no devices with given ping period, suspend.
         if len(devices) == 0:
+            del coroutines_map[period]
+            return
             await asyncio.sleep(period)
 
         # Create task of camera ping for every device.
@@ -275,17 +194,23 @@ async def ping_cameras_list(gateway: TBGatewayMqttClient, period: int) -> None:
 
         # Wait for every task to be completed.
         gatehring_tasks = datetime.now()
-        finished = await asyncio.gather(*tasks)
-        logging.info(f"implementing coros took {datetime.now() - gatehring_tasks} sec")
+        try:
+            finished = await asyncio.wait_for(asyncio.gather(*tasks), 60)
+            logging.info(
+                f"implementing coros took {datetime.now() - gatehring_tasks} sec"
+            )
 
-        # Update amount of cameras online and collect camera's statuses in list.
-        updating = datetime.now()
-        results = []
-        for task in finished:
-            status, ip = task[0], task[1]
-            config.cameras_online[ip] = status
-            results.append(status)
-        logging.info(f"Updating took {datetime.now() - updating} sec")
+            # Update amount of cameras online and collect camera's statuses in list.
+            updating = datetime.now()
+            results = []
+            for task in finished:
+                status, ip = task[0], task[1]
+                config.cameras_online[ip] = status
+                results.append(status)
+            logging.info(f"Updating took {datetime.now() - updating} sec")
+
+        except asyncio.exceptions.TimeoutError:
+            logging.exception("Timeout while ping list")
 
         # Calculate time to wait till next iteration and suspend coroutine.
         # If time to wait is less than 0, restart iteration immediately.
@@ -297,6 +222,9 @@ async def ping_cameras_list(gateway: TBGatewayMqttClient, period: int) -> None:
         )
         ts += timedelta(seconds=period)
         if time_to_wait > 0 and ts > datetime.now():
+            logging.info(
+                f"{time_to_wait} > 0 = {time_to_wait>0} and {ts} > {datetime.now()} = {ts > datetime.now()}"
+            )
             await asyncio.sleep(time_to_wait)
 
 
@@ -393,8 +321,109 @@ async def main() -> None:
         )
         gateway.connect()
 
+        def handle_gateway_rpc(request_id: int, request_body: dict) -> None:
+            logging.info(f"RPC: {request_body}")
+
+            # Parse data from the RPC message
+            device = request_body["params"]
+            method = request_body["method"]
+            # device = data["params"]
+            request_id = str(request_id)
+            print(method == "add_device")
+            if method == "add_device":
+                try:
+
+                    # Create new device
+                    camera = create_camera(**device)
+                    if camera:
+                        logging.info(
+                            f"new camera in {__file__}: {camera.name}, {camera.ping_period}"
+                        )
+
+                        # Put new camera in the pool with it's ping period. If there is no such, create.
+                        if cameras_map.get(camera.ping_period):
+                            cameras_map[camera.ping_period][camera.id] = camera
+                        else:
+                            cameras_map[camera.ping_period] = {}
+                            cameras_map[camera.ping_period][camera.id] = camera
+
+                        # gateway.gw_connect_device(device.name, "pp_Camera")
+                        # Send RPC reply "successful"
+                        gateway.send_rpc_reply(request_id, "true")
+                    else:
+                        # Send RPC reply "unsuccessful"
+                        gateway.send_rpc_reply(request_id, "false")
+
+                except Exception as e:
+                    logging.exception(f"Error while executing 'add_device': {e}")
+            if method == "delete_device":
+                try:
+                    # Get camera from DB
+                    camera = get_camera_by_name(device["name"])
+
+                    # If there is such, delete it from cameras pool and DB
+                    if camera:
+                        try:
+                            del cameras_map[camera.ping_period][camera.id]
+                        except AttributeError:
+                            pass
+
+                        res = delete_camera(camera)
+
+                        # If camera deleted, send RPC reply "successful"
+                        if not res:
+                            gateway.send_rpc_reply(request_id, "false")
+                            return
+
+                    # If camera not found, send RPC reply "unsuccessful"
+                    gateway.send_rpc_reply(request_id, "true")
+                except Exception as e:
+                    logging.exception(f"Error while executing 'delete_device': {e}")
+
+            if method == "update_device":
+                try:
+
+                    # Get camera from DB
+                    camera = get_camera_by_name(device["name"])
+                    if camera:
+
+                        # Delete old camera from corresponding cameras pool
+                        try:
+                            del cameras_map[camera.ping_period][camera.id]
+                        except AttributeError:
+                            pass
+
+                        # Update camera parameters and save to DB
+                        camera.id = device["id"]
+                        camera.ip = device["ip"]
+                        camera.name = device["newName"]
+                        if camera.ping_period != int(device["ping_period"]):
+                            camera.prev_ping_period = camera.ping_period
+                            camera.ping_period = int(device["ping_period"])
+                            config.db_modified = True
+                        res = update_camera(camera)
+
+                        # If successful, put camera in corresponding cameras pool and send RPC reply "successful".
+                        # Otherwise "unsuccessful"
+                        if res:
+                            ping_period_map = cameras_map.get(camera.ping_period, None)
+                            if not ping_period_map:
+                                cameras_map[camera.ping_period] = {}
+                            cameras_map[camera.ping_period][camera.id] = camera
+                            gateway.send_rpc_reply(request_id, "true")
+                        else:
+                            gateway.send_rpc_reply(request_id, "false")
+
+                    # If camera not found in DB, send RPC reply "unsuccessful"
+                    else:
+                        gateway.send_rpc_reply(request_id, "false")
+
+                except Exception as e:
+                    logging.exception(f"Error while executing 'update_device': {e}")
+
         # Add callback to handle RPC's from platform.
-        gateway.gw_set_server_side_rpc_request_handler(handle_rpc)
+        # gateway.gw_set_server_side_rpc_request_handler(handle_rpc)
+        gateway.set_server_side_rpc_request_handler(handle_gateway_rpc)
 
         logging.info(f"Gateway connected on {config.CUBA_URL}")
 
