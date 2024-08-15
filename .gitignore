@@ -1,6 +1,4 @@
 __pycache__/
-venv/
-.env
 info.log
 info_debug.log
 networks.py

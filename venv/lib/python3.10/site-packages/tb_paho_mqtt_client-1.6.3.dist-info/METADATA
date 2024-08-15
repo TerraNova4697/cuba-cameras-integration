@@ -1,0 +1,31 @@
+Metadata-Version: 2.1
+Name: tb-paho-mqtt-client
+Version: 1.6.3
+Summary: MQTT version 5.0/3.1.1 client class
+Home-page: http://eclipse.org/paho
+Author: Samsonov
+Author-email: vbidochka@thingsboard.io
+License: Eclipse Public License v2.0 / Eclipse Distribution License v1.0
+Keywords: paho
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved
+Classifier: Operating System :: MacOS :: MacOS X
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: POSIX
+Classifier: Natural Language :: English
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 2
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Topic :: Communications
+Classifier: Topic :: Internet
+License-File: LICENSE.txt
+Provides-Extra: proxy
+Requires-Dist: PySocks ; extra == 'proxy'
+
