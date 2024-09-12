@@ -3,8 +3,8 @@ Description=Check cameras connection and send data to CUBA IoT Platform
 
 [Service]
 WorkingDirectory=/cuba/cuba-cameras-integration
-ExecStart=/usr/bin/python3 /cuba/cuba-cameras-integration/main.py
-Restart=on-failure
+ExecStart=su cuba -c "/usr/bin/python3 /cuba/cuba-cameras-integration/main.py"
+Restart=always
 
 [Install]
 WantedBy=multi-user.target
