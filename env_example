@@ -1,0 +1,10 @@
+#!/usr/bin/bash
+
+export CUBA_URL=cloud.cubaiot.kz
+export TB_GATEWAY_TOKEN=1324134
+export TB_TOTALS_DEVICE_NAME=TOTALS
+export TB_CLIENT_ID=client
+export TB_DEVICE_PROFILE=pp_Camera
+export PING_COUNT=2
+export PING_INTERVAL=2
+export PING_INTERVAL=2
